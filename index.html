@@ -71,8 +71,12 @@
 
   <section class="bloc">
     <div class="champ">
-      <label for="rythme">Espacement visé entre deux passages (jours)</label>
-      <input id="rythme" type="number" min="1" max="10" step="1">
+      <label for="rythme">Espacement minimum (jours)</label>
+      <input id="rythme" type="number" min="1" max="14" step="1">
+    </div>
+    <div class="champ" style="margin-top:10px">
+      <label for="maxi">Espacement maximum (jours)</label>
+      <input id="maxi" type="number" min="1" max="14" step="1">
     </div>
     <div class="champ" style="margin-top:10px">
       <label for="seuil">Pluie qui remplace un passage (mm)</label>
@@ -85,9 +89,10 @@
 
 <script>
 const LAT = 44.3506, LON = 2.5750;
-const CLE_LOG = 'potager.arrosages', CLE_CFG = 'potager.rythme', CLE_SEUIL = 'potager.seuil', CLE_CACHE = 'potager.pluie';
+const CLE_LOG = 'potager.arrosages', CLE_CFG = 'potager.rythme', CLE_SEUIL = 'potager.seuil', CLE_MAX = 'potager.max', CLE_CACHE = 'potager.pluie';
 
-let rythme = lire(CLE_CFG, 3);        // espacement visé entre deux passages
+let rythme = lire(CLE_CFG, 3);        // espacement minimal entre deux passages
+let maxi = lire(CLE_MAX, 4);          // au-delà, l'appli signale le retard
 let seuil = lire(CLE_SEUIL, 15);      // mm de pluie qui remplacent un arrosage
 let arrosages = lire(CLE_LOG, []);
 let jours = null;
@@ -150,7 +155,7 @@ function rendre(){
     etat='attendre'; texte='Attends la pluie';
     raison = `${pluiePrevue.toFixed(0)} mm sont annoncés d'ici 48 h. Inutile d'arroser ce soir.`;
   } else if (secDepuisLongtemps) {
-    etat='arroser'; texte = (depuis !== null && depuis > rythme + 1) ? 'En retard' : 'Arrose';
+    etat='arroser'; texte = (depuis !== null && depuis > maxi) ? 'En retard' : 'Arrose';
     raison = dernier
       ? `Rien depuis ${depuis} jours (dernier${dernier.quoi==='pluie' ? ` : ${dernier.mm.toFixed(0)} mm ${nomJour(dernier.date)}` : ' arrosage'}). ${cumul7.toFixed(0)} mm de pluie sur la semaine.`
       : `Aucune pluie suffisante depuis une semaine (${cumul7.toFixed(0)} mm en tout) et aucun arrosage noté.`;
@@ -178,8 +183,8 @@ function dessiner(passe, futur){
   const tous = passe.concat(futur.map(j => ({...j, futur:true})));
   const L=340, base=96, gauche=6, droite=6;
   const larg = (L-gauche-droite)/tous.length;
-  const maxi = Math.max(8, ...tous.map(j => j.pluie));
-  const ech = 78/maxi;
+  const plafond = Math.max(8, ...tous.map(j => j.pluie));
+  const ech = 78/plafond;
   let s = `<line x1="${gauche}" y1="${base}" x2="${L-droite}" y2="${base}" stroke="var(--trait)"/>`;
   s += `<line x1="${gauche}" y1="${base-seuil*ech}" x2="${L-droite}" y2="${base-seuil*ech}" stroke="var(--eau)" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>`;
   tous.forEach((j,i) => {
@@ -214,7 +219,13 @@ const champRythme = document.getElementById('rythme');
 champRythme.value = rythme;
 champRythme.addEventListener('change', () => {
   const v = parseInt(champRythme.value,10);
-  if (v > 0) { rythme = v; ecrire(CLE_CFG, v); if (jours) rendre(); }
+  if (v > 0) { rythme = v; ecrire(CLE_CFG, v); if (maxi < v) { maxi = v; champMax.value = v; ecrire(CLE_MAX, v); } if (jours) rendre(); }
+});
+const champMax = document.getElementById('maxi');
+champMax.value = maxi;
+champMax.addEventListener('change', () => {
+  const v = parseInt(champMax.value,10);
+  if (v > 0) { maxi = Math.max(v, rythme); champMax.value = maxi; ecrire(CLE_MAX, maxi); if (jours) rendre(); }
 });
 const champSeuil = document.getElementById('seuil');
 champSeuil.value = seuil;
