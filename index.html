@@ -101,7 +101,7 @@ function courtJour(s){ return new Date(s+'T12:00:00').toLocaleDateString('fr-FR'
 
 async function charger(){
   const url = 'https://api.open-meteo.com/v1/forecast?latitude='+LAT+'&longitude='+LON
-    + '&daily=precipitation_sum&past_days=7&forecast_days=3&timezone=Europe%2FParis';
+    + '&daily=precipitation_sum&past_days=7&forecast_days=4&timezone=Europe%2FParis';
   try {
     const r = await fetch(url);
     if (!r.ok) throw new Error('réponse ' + r.status);
@@ -156,9 +156,12 @@ function rendre(){
       : `Aucune pluie suffisante depuis une semaine (${cumul7.toFixed(0)} mm en tout) et aucun arrosage noté.`;
   } else {
     etat='repos'; texte='Pas besoin';
+    const prochain = new Date(new Date(dernier.date).getTime() + rythme*864e5).toISOString().slice(0,10);
+    const suffixe = ` Prochain passage ${ecart(today, prochain) === 1 ? 'demain' : nomJour(prochain)}.`;
     raison = dernier.quoi === 'pluie'
       ? `Il est tombé ${dernier.mm.toFixed(0)} mm ${depuis === 0 ? "aujourd'hui" : depuis === 1 ? 'hier' : nomJour(dernier.date)}. ${cumul7.toFixed(0)} mm sur la semaine.`
       : depuis === 0 ? 'Tu as arrosé aujourd\u2019hui.' : `Tu as arrosé il y a ${depuis} jour${depuis>1?'s':''}.`;
+    raison += suffixe;
   }
 
   document.getElementById('mot').className = 'mot ' + etat;
@@ -167,7 +170,7 @@ function rendre(){
   document.getElementById('cle').textContent =
     `${cumul7.toFixed(0)} mm sur sept jours · ${pluiePrevue.toFixed(0)} mm annoncés d'ici 48 h · une pluie remplace un passage à partir de ${seuil} mm`;
 
-  dessiner(passe, futur.slice(0,2));
+  dessiner(passe, futur.slice(0,3));
   histo();
 }
 
@@ -185,7 +188,8 @@ function dessiner(passe, futur){
     if (h) s += `<rect x="${cx-w/2}" y="${base-h}" width="${w}" height="${h}" rx="1" fill="var(--eau)" opacity="${j.futur ? 0.35 : 1}"/>`;
     if (j.pluie >= 1) s += `<text x="${cx}" y="${base-h-5}" text-anchor="middle" font-size="10.5" fill="var(--eau)">${j.pluie.toFixed(0)}</text>`;
     if (arrosages.includes(j.date)) s += `<circle cx="${cx}" cy="${base+9}" r="3" fill="var(--sec)"/>`;
-    s += `<text x="${cx}" y="${base+26}" text-anchor="middle" font-size="11.5" fill="var(--encre-doux)" opacity="${j.futur ? 0.6 : 1}">${courtJour(j.date)}</text>`;
+    const cejour = j.date === auj();
+    s += `<text x="${cx}" y="${base+26}" text-anchor="middle" font-size="11.5" font-weight="${cejour?600:400}" fill="${cejour?'var(--encre)':'var(--encre-doux)'}" opacity="${j.futur ? 0.6 : 1}">${cejour ? 'auj.' : courtJour(j.date)}</text>`;
   });
   document.getElementById('graphe').innerHTML = s;
 }
