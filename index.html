@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Arrosage — Rodez</title>
+<meta name="theme-color" content="#E6E9DE">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bitter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --terre:#E6E9DE; --terre-fonce:#D5DAC9; --encre:#1E2A20; --encre-doux:#5C6A5C;
+    --eau:#2E6F8E; --sec:#B4611D; --pousse:#3F7A4E; --trait:rgba(30,42,32,.18);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--terre);color:var(--encre);font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .page{max-width:460px;margin:0 auto;padding:24px 20px 48px}
+  header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:22px}
+  header h1{font-family:Bitter,Georgia,serif;font-weight:600;font-size:19px;margin:0}
+  header .lieu{color:var(--encre-doux);font-size:13px}
+  .verdict{border-top:2px solid var(--encre);padding-top:14px}
+  .verdict p{margin:0}
+  .mot{font-family:Bitter,Georgia,serif;font-weight:600;font-size:clamp(30px,10vw,40px);line-height:1.05;margin:0 0 8px;letter-spacing:-.01em}
+  .pourquoi{color:var(--encre-doux);font-size:14.5px;max-width:34em}
+  .mot.arroser{color:var(--sec)} .mot.attendre{color:var(--eau)} .mot.repos{color:var(--pousse)}
+  .graphe{margin:26px 0 6px}
+  svg{display:block;width:100%;height:auto;overflow:visible}
+  .cle{font-size:12.5px;color:var(--encre-doux);margin-bottom:24px}
+  .bloc{border-top:1px solid var(--trait);padding-top:14px;margin-top:22px}
+  .bloc h2{font-family:Bitter,Georgia,serif;font-size:15px;font-weight:600;margin:0 0 8px}
+  .bloc p{margin:0 0 10px;font-size:14.5px;color:var(--encre-doux)}
+  button{font:inherit;font-size:15px;border:1.5px solid var(--encre);background:transparent;color:var(--encre);padding:11px 16px;border-radius:3px;cursor:pointer}
+  button.plein{background:var(--encre);color:var(--terre)}
+  button:focus-visible{outline:3px solid var(--eau);outline-offset:2px}
+  .actions{display:flex;gap:10px;flex-wrap:wrap}
+  .champ{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:14.5px;color:var(--encre-doux)}
+  .champ input{font:inherit;width:64px;padding:6px 8px;border:1px solid var(--trait);border-radius:3px;background:#fff;color:var(--encre);text-align:right}
+  .note{font-size:13px;color:var(--encre-doux);margin-top:24px;border-top:1px solid var(--trait);padding-top:12px}
+  .erreur{color:var(--sec)}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Arroser ou non</h1>
+    <span class="lieu">Rodez · potager</span>
+  </header>
+
+  <section class="verdict">
+    <p class="mot" id="mot">Lecture du ciel…</p>
+    <p class="pourquoi" id="pourquoi">Récupération des pluies des sept derniers jours.</p>
+  </section>
+
+  <section class="graphe">
+    <svg id="graphe" viewBox="0 0 340 130" role="img" aria-label="Pluie des sept derniers jours et prévision"></svg>
+  </section>
+  <p class="cle" id="cle"></p>
+
+  <section class="bloc">
+    <h2>Mes arrosages</h2>
+    <p id="histo">Aucun arrosage enregistré.</p>
+    <div class="actions">
+      <button class="plein" id="btnArrose">J'ai arrosé aujourd'hui</button>
+      <button id="btnAnnule">Annuler le dernier</button>
+    </div>
+  </section>
+
+  <section class="bloc">
+    <div class="champ">
+      <label for="rythme">Arroser après combien de jours sans eau</label>
+      <input id="rythme" type="number" min="1" max="10" step="1">
+    </div>
+  </section>
+
+  <p class="note" id="note"></p>
+</div>
+
+<script>
+const LAT = 44.3506, LON = 2.5750;
+const CLE_LOG = 'potager.arrosages', CLE_CFG = 'potager.rythme', CLE_CACHE = 'potager.pluie';
+const PLUIE_UTILE = 5;   // mm : en dessous, la pluie mouille la surface et repart
+
+let rythme = lire(CLE_CFG, 3);
+let arrosages = lire(CLE_LOG, []);
+let jours = null;
+
+function lire(k,d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }
+function ecrire(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+function auj(){ const d=new Date(); return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10); }
+function ecart(a,b){ return Math.round((new Date(b)-new Date(a))/864e5); }
+function nomJour(s){ return new Date(s+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long'}); }
+function courtJour(s){ return new Date(s+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short'}).replace('.',''); }
+
+async function charger(){
+  const url = 'https://api.open-meteo.com/v1/forecast?latitude='+LAT+'&longitude='+LON
+    + '&daily=precipitation_sum&past_days=7&forecast_days=3&timezone=Europe%2FParis';
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('réponse ' + r.status);
+    const j = await r.json();
+    jours = j.daily.time.map((t,i) => ({ date:t, pluie: j.daily.precipitation_sum?.[i] ?? 0 }));
+    ecrire(CLE_CACHE, { quand: Date.now(), jours });
+    document.getElementById('note').textContent = 'Pluies relevées par Open-Meteo sur Rodez, à '
+      + new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) + '.';
+  } catch (e) {
+    const c = lire(CLE_CACHE, null);
+    if (!c) {
+      const local = !location.protocol.startsWith('http');
+      document.getElementById('mot').textContent = 'Pas de relevés';
+      document.getElementById('pourquoi').innerHTML = (local
+        ? 'La page est ouverte hors serveur web (' + location.protocol + ') : ce mode bloque les appels réseau. Publie-la sur GitHub Pages et ouvre-la dans Chrome.'
+        : 'Open-Meteo n’a pas répondu (' + (e.message || 'réseau indisponible') + ').')
+        + ' <br><button id="btnRetry" style="margin-top:12px">Réessayer</button>';
+      document.getElementById('btnRetry').addEventListener('click', charger);
+      return;
+    }
+    jours = c.jours;
+    document.getElementById('note').innerHTML = '<span class="erreur">Pas de réseau.</span> Relevés du '
+      + new Date(c.quand).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) + '.';
+  }
+  rendre();
+}
+
+function rendre(){
+  const today = auj();
+  const passe = jours.filter(j => j.date <= today).slice(-7);
+  const futur = jours.filter(j => j.date > today);
+  const cumul7 = passe.reduce((a,j) => a+j.pluie, 0);
+  const pluiePrevue = futur.slice(0,2).reduce((a,j) => a+j.pluie, 0);
+
+  // Dernier apport réel : pluie utile ou arrosage
+  const apports = passe.filter(j => j.pluie >= PLUIE_UTILE).map(j => ({date:j.date, quoi:'pluie', mm:j.pluie}))
+    .concat(arrosages.filter(d => d <= today).map(d => ({date:d, quoi:'arrosage'})));
+  apports.sort((a,b) => a.date < b.date ? -1 : 1);
+  const dernier = apports.at(-1) || null;
+  const depuis = dernier ? ecart(dernier.date, today) : null;
+
+  let etat, texte, raison;
+  const secDepuisLongtemps = depuis === null || depuis >= rythme;
+
+  if (secDepuisLongtemps && pluiePrevue >= PLUIE_UTILE) {
+    etat='attendre'; texte='Attends la pluie';
+    raison = `${pluiePrevue.toFixed(0)} mm sont annoncés d'ici 48 h. Inutile d'arroser ce soir.`;
+  } else if (secDepuisLongtemps) {
+    etat='arroser'; texte='Arrose';
+    raison = dernier
+      ? `Rien depuis ${depuis} jours (dernier${dernier.quoi==='pluie' ? ` : ${dernier.mm.toFixed(0)} mm ${nomJour(dernier.date)}` : ' arrosage'}). ${cumul7.toFixed(0)} mm sur la semaine.`
+      : `Aucune pluie utile depuis une semaine (${cumul7.toFixed(0)} mm en tout) et aucun arrosage noté.`;
+  } else {
+    etat='repos'; texte='Pas besoin';
+    raison = dernier.quoi === 'pluie'
+      ? `Il est tombé ${dernier.mm.toFixed(0)} mm ${depuis === 0 ? "aujourd'hui" : depuis === 1 ? 'hier' : nomJour(dernier.date)}. ${cumul7.toFixed(0)} mm sur la semaine.`
+      : `Tu as arrosé il y a ${depuis} jour${depuis>1?'s':''}.`;
+  }
+
+  document.getElementById('mot').className = 'mot ' + etat;
+  document.getElementById('mot').textContent = texte;
+  document.getElementById('pourquoi').textContent = raison;
+  document.getElementById('cle').textContent =
+    `${cumul7.toFixed(0)} mm sur sept jours · ${pluiePrevue.toFixed(0)} mm annoncés d'ici 48 h · une pluie compte à partir de ${PLUIE_UTILE} mm`;
+
+  dessiner(passe, futur.slice(0,2));
+  histo();
+}
+
+function dessiner(passe, futur){
+  const tous = passe.concat(futur.map(j => ({...j, futur:true})));
+  const L=340, base=96, gauche=6, droite=6;
+  const larg = (L-gauche-droite)/tous.length;
+  const maxi = Math.max(8, ...tous.map(j => j.pluie));
+  const ech = 78/maxi;
+  let s = `<line x1="${gauche}" y1="${base}" x2="${L-droite}" y2="${base}" stroke="var(--trait)"/>`;
+  s += `<line x1="${gauche}" y1="${base-PLUIE_UTILE*ech}" x2="${L-droite}" y2="${base-PLUIE_UTILE*ech}" stroke="var(--eau)" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>`;
+  tous.forEach((j,i) => {
+    const cx = gauche + i*larg + larg/2, w = Math.min(24, larg*0.6);
+    const h = Math.max(j.pluie*ech, j.pluie>0 ? 1.5 : 0);
+    if (h) s += `<rect x="${cx-w/2}" y="${base-h}" width="${w}" height="${h}" rx="1" fill="var(--eau)" opacity="${j.futur ? 0.35 : 1}"/>`;
+    if (j.pluie >= 1) s += `<text x="${cx}" y="${base-h-5}" text-anchor="middle" font-size="10.5" fill="var(--eau)">${j.pluie.toFixed(0)}</text>`;
+    if (arrosages.includes(j.date)) s += `<circle cx="${cx}" cy="${base+9}" r="3" fill="var(--sec)"/>`;
+    s += `<text x="${cx}" y="${base+26}" text-anchor="middle" font-size="11.5" fill="var(--encre-doux)" opacity="${j.futur ? 0.6 : 1}">${courtJour(j.date)}</text>`;
+  });
+  document.getElementById('graphe').innerHTML = s;
+}
+
+function histo(){
+  const el = document.getElementById('histo');
+  if (!arrosages.length) { el.textContent = 'Aucun arrosage enregistré. Note-les, ils comptent autant que la pluie.'; return; }
+  el.textContent = 'Derniers arrosages : ' + arrosages.slice().sort().reverse().slice(0,4)
+    .map(d => new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short'})).join(', ') + '.';
+}
+
+document.getElementById('btnArrose').addEventListener('click', () => {
+  const d = auj();
+  if (!arrosages.includes(d)) { arrosages.push(d); ecrire(CLE_LOG, arrosages); }
+  jours ? rendre() : histo();
+});
+document.getElementById('btnAnnule').addEventListener('click', () => {
+  arrosages.sort(); arrosages.pop(); ecrire(CLE_LOG, arrosages);
+  jours ? rendre() : histo();
+});
+const champRythme = document.getElementById('rythme');
+champRythme.value = rythme;
+champRythme.addEventListener('change', () => {
+  const v = parseInt(champRythme.value,10);
+  if (v > 0) { rythme = v; ecrire(CLE_CFG, v); if (jours) rendre(); }
+});
+
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+charger();
+</script>
+</body>
+</html>

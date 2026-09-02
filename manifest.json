@@ -1,0 +1,13 @@
+{
+  "name": "Arroser ou non — Rodez",
+  "short_name": "Arrosage",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#E6E9DE",
+  "theme_color": "#E6E9DE",
+  "lang": "fr",
+  "icons": [
+    { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
