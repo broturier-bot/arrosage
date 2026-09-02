@@ -103,6 +103,7 @@ function ecrire(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch 
 function auj(){ const d=new Date(); return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10); }
 function ecart(a,b){ return Math.round((new Date(b)-new Date(a))/864e5); }
 function nomJour(s){ return new Date(s+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long'}); }
+function mm(v){ return v > 0 && v < 1 ? v.toFixed(1) : v.toFixed(0); }
 function courtJour(s){ return new Date(s+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short'}).replace('.',''); }
 
 async function charger(){
@@ -160,21 +161,21 @@ function rendre(){
 
   if (secDepuisLongtemps && cumulPrevu >= seuil) {
     etat='attendre'; texte='Attends la pluie';
-    const detail = joursPluie.map(j => `${j.pluie.toFixed(0)} mm ${nomJour(j.date)}`).join(', ');
+    const detail = joursPluie.map(j => `${mm(j.pluie)} mm ${nomJour(j.date)}`).join(', ');
     const echeance = ecart(today, joursPluie.at(-1).date);
-    raison = `${cumulPrevu.toFixed(0)} mm annoncés avant ton prochain passage — ${detail}.`
+    raison = `${mm(cumulPrevu)} mm annoncés avant ton prochain passage — ${detail}.`
       + (echeance >= 3 ? ' Échéance lointaine, à reconfirmer demain.' : '');
   } else if (secDepuisLongtemps) {
     etat='arroser'; texte = (depuis !== null && depuis > maxi) ? 'En retard' : 'Arrose';
     raison = dernier
-      ? `Rien depuis ${depuis} jours (dernier${dernier.quoi==='pluie' ? ` : ${dernier.mm.toFixed(0)} mm ${nomJour(dernier.date)}` : ' arrosage'}). ${cumul7.toFixed(0)} mm de pluie sur la semaine.`
-      : `Aucune pluie suffisante depuis une semaine (${cumul7.toFixed(0)} mm en tout) et aucun arrosage noté.`;
+      ? `Rien depuis ${depuis} jours (dernier${dernier.quoi==='pluie' ? ` : ${mm(dernier.mm)} mm ${nomJour(dernier.date)}` : ' arrosage'}). ${mm(cumul7)} mm de pluie sur la semaine.`
+      : `Aucune pluie suffisante depuis une semaine (${mm(cumul7)} mm en tout) et aucun arrosage noté.`;
   } else {
     etat='repos'; texte='Pas besoin';
     const prochain = new Date(new Date(dernier.date).getTime() + rythme*864e5).toISOString().slice(0,10);
     const suffixe = ` Prochain passage ${ecart(today, prochain) === 1 ? 'demain' : nomJour(prochain)}.`;
     raison = dernier.quoi === 'pluie'
-      ? `Il est tombé ${dernier.mm.toFixed(0)} mm ${depuis === 0 ? "aujourd'hui" : depuis === 1 ? 'hier' : nomJour(dernier.date)}. ${cumul7.toFixed(0)} mm sur la semaine.`
+      ? `Il est tombé ${mm(dernier.mm)} mm ${depuis === 0 ? "aujourd'hui" : depuis === 1 ? 'hier' : nomJour(dernier.date)}. ${mm(cumul7)} mm sur la semaine.`
       : depuis === 0 ? 'Tu as arrosé aujourd\u2019hui.' : `Tu as arrosé il y a ${depuis} jour${depuis>1?'s':''}.`;
     raison += suffixe;
   }
@@ -183,7 +184,7 @@ function rendre(){
   document.getElementById('mot').textContent = texte;
   document.getElementById('pourquoi').textContent = raison;
   document.getElementById('cle').textContent =
-    `${cumul7.toFixed(0)} mm tombés sur sept jours · ${cumul7Prevu.toFixed(0)} mm annoncés sur les sept prochains · une pluie remplace un passage à partir de ${seuil} mm`;
+    `${mm(cumul7)} mm tombés sur sept jours · ${mm(cumul7Prevu)} mm annoncés sur les sept prochains · une pluie remplace un passage à partir de ${seuil} mm`;
 
   dessiner(passe, futur.slice(0,7));
   histo();
@@ -202,7 +203,7 @@ function dessiner(passe, futur){
     const cx = gauche + i*larg + larg/2, w = Math.min(24, larg*0.6);
     const h = Math.max(j.pluie*ech, j.pluie>0 ? 1.5 : 0);
     if (h) s += `<rect x="${cx-w/2}" y="${base-h}" width="${w}" height="${h}" rx="1" fill="var(--eau)" opacity="${j.futur ? 0.35 : 1}"/>`;
-    if (j.pluie >= 1) s += `<text x="${cx}" y="${base-h-5}" text-anchor="middle" font-size="${petit?9.5:10.5}" fill="var(--eau)">${j.pluie.toFixed(0)}</text>`;
+    if (j.pluie >= 0.2) s += `<text x="${cx}" y="${base-h-5}" text-anchor="middle" font-size="${petit?9.5:10.5}" fill="var(--eau)">${mm(j.pluie)}</text>`;
     if (arrosages.includes(j.date)) s += `<circle cx="${cx}" cy="${base+9}" r="3" fill="var(--sec)"/>`;
     const cejour = j.date === auj();
     s += `<text x="${cx}" y="${base+26}" text-anchor="middle" font-size="${petit?10:11.5}" font-weight="${cejour?600:400}" text-decoration="${cejour?'underline':'none'}" fill="${cejour?'var(--encre)':'var(--encre-doux)'}" opacity="${j.futur ? 0.6 : 1}">${petit ? courtJour(j.date).slice(0,2) : courtJour(j.date)}</text>`;
