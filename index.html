@@ -189,7 +189,7 @@ function dessiner(passe, futur){
     if (j.pluie >= 1) s += `<text x="${cx}" y="${base-h-5}" text-anchor="middle" font-size="10.5" fill="var(--eau)">${j.pluie.toFixed(0)}</text>`;
     if (arrosages.includes(j.date)) s += `<circle cx="${cx}" cy="${base+9}" r="3" fill="var(--sec)"/>`;
     const cejour = j.date === auj();
-    s += `<text x="${cx}" y="${base+26}" text-anchor="middle" font-size="11.5" font-weight="${cejour?600:400}" fill="${cejour?'var(--encre)':'var(--encre-doux)'}" opacity="${j.futur ? 0.6 : 1}">${cejour ? 'auj.' : courtJour(j.date)}</text>`;
+    s += `<text x="${cx}" y="${base+26}" text-anchor="middle" font-size="11.5" font-weight="${cejour?600:400}" text-decoration="${cejour?'underline':'none'}" fill="${cejour?'var(--encre)':'var(--encre-doux)'}" opacity="${j.futur ? 0.6 : 1}">${courtJour(j.date)}</text>`;
   });
   document.getElementById('graphe').innerHTML = s;
 }
