@@ -71,8 +71,12 @@
 
   <section class="bloc">
     <div class="champ">
-      <label for="rythme">Arroser après combien de jours sans eau</label>
+      <label for="rythme">Espacement visé entre deux passages (jours)</label>
       <input id="rythme" type="number" min="1" max="10" step="1">
+    </div>
+    <div class="champ" style="margin-top:10px">
+      <label for="seuil">Pluie qui remplace un passage (mm)</label>
+      <input id="seuil" type="number" min="2" max="40" step="1">
     </div>
   </section>
 
@@ -81,10 +85,10 @@
 
 <script>
 const LAT = 44.3506, LON = 2.5750;
-const CLE_LOG = 'potager.arrosages', CLE_CFG = 'potager.rythme', CLE_CACHE = 'potager.pluie';
-const PLUIE_UTILE = 5;   // mm : en dessous, la pluie mouille la surface et repart
+const CLE_LOG = 'potager.arrosages', CLE_CFG = 'potager.rythme', CLE_SEUIL = 'potager.seuil', CLE_CACHE = 'potager.pluie';
 
-let rythme = lire(CLE_CFG, 3);
+let rythme = lire(CLE_CFG, 3);        // espacement visé entre deux passages
+let seuil = lire(CLE_SEUIL, 15);      // mm de pluie qui remplacent un arrosage
 let arrosages = lire(CLE_LOG, []);
 let jours = null;
 
@@ -133,7 +137,7 @@ function rendre(){
   const pluiePrevue = futur.slice(0,2).reduce((a,j) => a+j.pluie, 0);
 
   // Dernier apport réel : pluie utile ou arrosage
-  const apports = passe.filter(j => j.pluie >= PLUIE_UTILE).map(j => ({date:j.date, quoi:'pluie', mm:j.pluie}))
+  const apports = passe.filter(j => j.pluie >= seuil).map(j => ({date:j.date, quoi:'pluie', mm:j.pluie}))
     .concat(arrosages.filter(d => d <= today).map(d => ({date:d, quoi:'arrosage'})));
   apports.sort((a,b) => a.date < b.date ? -1 : 1);
   const dernier = apports.at(-1) || null;
@@ -142,26 +146,26 @@ function rendre(){
   let etat, texte, raison;
   const secDepuisLongtemps = depuis === null || depuis >= rythme;
 
-  if (secDepuisLongtemps && pluiePrevue >= PLUIE_UTILE) {
+  if (secDepuisLongtemps && pluiePrevue >= seuil) {
     etat='attendre'; texte='Attends la pluie';
     raison = `${pluiePrevue.toFixed(0)} mm sont annoncés d'ici 48 h. Inutile d'arroser ce soir.`;
   } else if (secDepuisLongtemps) {
-    etat='arroser'; texte='Arrose';
+    etat='arroser'; texte = (depuis !== null && depuis > rythme + 1) ? 'En retard' : 'Arrose';
     raison = dernier
-      ? `Rien depuis ${depuis} jours (dernier${dernier.quoi==='pluie' ? ` : ${dernier.mm.toFixed(0)} mm ${nomJour(dernier.date)}` : ' arrosage'}). ${cumul7.toFixed(0)} mm sur la semaine.`
-      : `Aucune pluie utile depuis une semaine (${cumul7.toFixed(0)} mm en tout) et aucun arrosage noté.`;
+      ? `Rien depuis ${depuis} jours (dernier${dernier.quoi==='pluie' ? ` : ${dernier.mm.toFixed(0)} mm ${nomJour(dernier.date)}` : ' arrosage'}). ${cumul7.toFixed(0)} mm de pluie sur la semaine.`
+      : `Aucune pluie suffisante depuis une semaine (${cumul7.toFixed(0)} mm en tout) et aucun arrosage noté.`;
   } else {
     etat='repos'; texte='Pas besoin';
     raison = dernier.quoi === 'pluie'
       ? `Il est tombé ${dernier.mm.toFixed(0)} mm ${depuis === 0 ? "aujourd'hui" : depuis === 1 ? 'hier' : nomJour(dernier.date)}. ${cumul7.toFixed(0)} mm sur la semaine.`
-      : `Tu as arrosé il y a ${depuis} jour${depuis>1?'s':''}.`;
+      : depuis === 0 ? 'Tu as arrosé aujourd\u2019hui.' : `Tu as arrosé il y a ${depuis} jour${depuis>1?'s':''}.`;
   }
 
   document.getElementById('mot').className = 'mot ' + etat;
   document.getElementById('mot').textContent = texte;
   document.getElementById('pourquoi').textContent = raison;
   document.getElementById('cle').textContent =
-    `${cumul7.toFixed(0)} mm sur sept jours · ${pluiePrevue.toFixed(0)} mm annoncés d'ici 48 h · une pluie compte à partir de ${PLUIE_UTILE} mm`;
+    `${cumul7.toFixed(0)} mm sur sept jours · ${pluiePrevue.toFixed(0)} mm annoncés d'ici 48 h · une pluie remplace un passage à partir de ${seuil} mm`;
 
   dessiner(passe, futur.slice(0,2));
   histo();
@@ -174,7 +178,7 @@ function dessiner(passe, futur){
   const maxi = Math.max(8, ...tous.map(j => j.pluie));
   const ech = 78/maxi;
   let s = `<line x1="${gauche}" y1="${base}" x2="${L-droite}" y2="${base}" stroke="var(--trait)"/>`;
-  s += `<line x1="${gauche}" y1="${base-PLUIE_UTILE*ech}" x2="${L-droite}" y2="${base-PLUIE_UTILE*ech}" stroke="var(--eau)" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>`;
+  s += `<line x1="${gauche}" y1="${base-seuil*ech}" x2="${L-droite}" y2="${base-seuil*ech}" stroke="var(--eau)" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>`;
   tous.forEach((j,i) => {
     const cx = gauche + i*larg + larg/2, w = Math.min(24, larg*0.6);
     const h = Math.max(j.pluie*ech, j.pluie>0 ? 1.5 : 0);
@@ -190,7 +194,7 @@ function histo(){
   const el = document.getElementById('histo');
   if (!arrosages.length) { el.textContent = 'Aucun arrosage enregistré. Note-les, ils comptent autant que la pluie.'; return; }
   el.textContent = 'Derniers arrosages : ' + arrosages.slice().sort().reverse().slice(0,4)
-    .map(d => new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short'})).join(', ') + '.';
+    .map(d => new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short'}).replace(/\.$/,'')).join(', ') + '.';
 }
 
 document.getElementById('btnArrose').addEventListener('click', () => {
@@ -207,6 +211,12 @@ champRythme.value = rythme;
 champRythme.addEventListener('change', () => {
   const v = parseInt(champRythme.value,10);
   if (v > 0) { rythme = v; ecrire(CLE_CFG, v); if (jours) rendre(); }
+});
+const champSeuil = document.getElementById('seuil');
+champSeuil.value = seuil;
+champSeuil.addEventListener('change', () => {
+  const v = parseInt(champSeuil.value,10);
+  if (v > 0) { seuil = v; ecrire(CLE_SEUIL, v); if (jours) rendre(); }
 });
 
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
