@@ -107,7 +107,7 @@ function courtJour(s){ return new Date(s+'T12:00:00').toLocaleDateString('fr-FR'
 
 async function charger(){
   const url = 'https://api.open-meteo.com/v1/forecast?latitude='+LAT+'&longitude='+LON
-    + '&daily=precipitation_sum&past_days=7&forecast_days=4&timezone=Europe%2FParis';
+    + '&daily=precipitation_sum&past_days=7&forecast_days=7&timezone=Europe%2FParis';
   try {
     const r = await fetch(url);
     if (!r.ok) throw new Error('réponse ' + r.status);
@@ -140,7 +140,7 @@ function rendre(){
   const passe = jours.filter(j => j.date <= today).slice(-7);
   const futur = jours.filter(j => j.date > today);
   const cumul7 = passe.reduce((a,j) => a+j.pluie, 0);
-  const pluiePrevue = futur.slice(0,2).reduce((a,j) => a+j.pluie, 0);
+  const pluiePrevue = futur.slice(0,2).reduce((a,j) => a+j.pluie, 0);   // 48 h, pour la ligne de contexte
 
   // Dernier apport réel : pluie utile ou arrosage
   const apports = passe.filter(j => j.pluie >= seuil).map(j => ({date:j.date, quoi:'pluie', mm:j.pluie}))
@@ -152,9 +152,16 @@ function rendre(){
   let etat, texte, raison;
   const secDepuisLongtemps = depuis === null || depuis >= rythme;
 
-  if (secDepuisLongtemps && pluiePrevue >= seuil) {
+  // Marge restante avant l'espacement maximum : c'est la fenêtre où une pluie
+  // peut encore remplacer le passage sans que tu sortes de tes clous.
+  const marge = depuis === null ? 0 : Math.max(0, maxi - depuis);
+  const averse = futur.slice(0, marge).find(j => j.pluie >= seuil) || null;
+
+  if (secDepuisLongtemps && averse) {
+    const dans = ecart(today, averse.date);
     etat='attendre'; texte='Attends la pluie';
-    raison = `${pluiePrevue.toFixed(0)} mm sont annoncés d'ici 48 h. Inutile d'arroser ce soir.`;
+    raison = `${averse.pluie.toFixed(0)} mm annoncés ${dans === 1 ? 'demain' : nomJour(averse.date)}`
+      + (dans >= 3 ? `, à ${dans} jours d'échéance : à confirmer demain.` : '. Inutile d’arroser d’ici là.');
   } else if (secDepuisLongtemps) {
     etat='arroser'; texte = (depuis !== null && depuis > maxi) ? 'En retard' : 'Arrose';
     raison = dernier
